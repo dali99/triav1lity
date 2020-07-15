@@ -1,10 +1,10 @@
 let
-  pkgs = import <nixpkgs> {};
+  pkgs = import <nixos-unstable> {};
 in
 with pkgs;
 stdenv.mkDerivation {
   pname = "triav1c";
-  version = "0.0.0-20200715-0";
+  version = "0.0.0-20200715-1";
 
   src = ./. ;
 
@@ -16,6 +16,7 @@ stdenv.mkDerivation {
     chmod +x $out/bin/triav1c
 
     wrapProgram $out/bin/triav1c \
-      --prefix PATH : ${lib.makeBinPath [ ffmpeg libaom ]}
+      --prefix PATH : ${lib.makeBinPath [ ffmpeg-full libaom ]} \
+      --prefix MODEL_PATH : ${libvmaf}
   '';
 }

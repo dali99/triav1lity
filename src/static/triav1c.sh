@@ -25,14 +25,14 @@ encode_aomenc_two_pass() {
     aom_options=${aom_options//[^a-zA-Z0-9_\- =]/}
     # Same story as above but also
     ffmpeg_options="$3"
-    ffmpeg_options=${ffmpego//[^a-zA-Z0-9_\- =:]/}
+    ffmpeg_options=${ffmpeg_options//[^a-zA-Z0-9_\- =:]/}
     # set to boolean
-    doVMAF=$4
+    doVMAF="$4"
 
     set +e
-        ffmpeg -nostats -hide_banner -loglevel warning \
-            -i "$file" "$ffmpeg_options" -f yuv4mpegpipe - | aomenc - "$aom_options" \
-            --pass=1 --passes=2 --fpf="$file".fpf --ivf -o "$file".out.ivf
+        eval '#ffmpeg -nostats -hide_banner -loglevel warning \
+            -i '$file' $ffmpeg_options -f yuv4mpegpipe - | aomenc - '$aom_options' \
+            --pass=1 --passes=2 --fpf='$file'.fpf --ivf -o '$file'.out.ivf'
         retval=$?
         if [[ $retval -ne 0 ]]; then
             echo "Error running aomenc pass 1 of 2" >&2
@@ -41,9 +41,9 @@ encode_aomenc_two_pass() {
             return 1
         fi
 
-        ffmpeg -nostats -hide_banner -loglevel warning \
-            -i "$file" "$ffmpeg_options" -f yuv4mpegpipe - | aomenc - "$aom_options" \
-            --pass=1 --passes=2 --fpf="$file".fpf --ivf -o "$file".out.ivf
+        eval '#ffmpeg -nostats -hide_banner -loglevel warning \
+            -i '$file' $ffmpeg_options -f yuv4mpegpipe - | aomenc - '$aom_options' \
+            --pass=2 --passes=2 --fpf='$file'.fpf --ivf -o '$file'.out.ivf'
         retval=$?
         if [ $retval -ne 0 ]; then
             echo "Error running aomenc pass 2 of 2" >&2
@@ -56,10 +56,10 @@ encode_aomenc_two_pass() {
         # This probably needs to be improved as well, so that it scales
         # and sets the framerate automatically. This will likely never
         # Actually get used though, so it's fine.
-        if [[ doVMAF -eq true ]]; then
-            ffmpeg -nostats -hide_banner -loglevel warning \
-                -r 24 -i "$file".out.ivf -r 24 "$file" -filter_complex \
-                "[0:v][1:v]libvmaf=log_fmt=json:log_path=$file.vmaf.json" -f null - >/dev/null
+        if [[ $doVMAF == "true" ]]; then
+            ffmpeg -nostats -hide_banner \
+                -r 24 -i $file.out.ivf -r 24 -i $file -filter_complex \
+                "[0:v][1:v]libvmaf=model_path=$MODEL_PATH/share/model/vmaf_v0.6.1.pkl:log_fmt=json:log_path=$file.vmaf.json" -f null - >/dev/null
             retval=$?
             if [ $retval -ne 0 ]; then
                 echo "Error running VMAF scan" >&2
@@ -72,10 +72,11 @@ encode_aomenc_two_pass() {
     set -e
 
     rm -f \
-        "$file" \
+    #    "$file" \
         "$file".fpf \
         "$file".vmaf.json
 
     return 0
 }
 
+encode_aomenc_two_pass "$1" "-b 10 --cpu-used=5 --end-usage=q --cq-level=50 --tile-columns=0 --tile-rows=0 --lag-in-frames=35 --auto-alt-ref=1" "" true
