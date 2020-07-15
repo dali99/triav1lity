@@ -6,11 +6,12 @@ set -euo pipefail
 IFS=$'\n\t'
 
 
-#######################
-# $1 - file           #
-# $2 - AOM Options    #
-# $3 - FFMPEG Options #
-#######################
+#########################
+# $1 - file             #
+# $2 - AOM Options      #
+# $3 - FFMPEG Options   #
+# files - $file.out.ivf #
+#########################
 encode_aomenc_two_pass() {
     file="$1"
     aom_options="$2"
@@ -52,11 +53,12 @@ encode_aomenc_two_pass() {
     return 0
 }
 
-#######################
-# $1 - file           #
-# $2 - AOM Options    #
-# $3 - FFMPEG Options #
-#######################
+#########################
+# $1 - file             #
+# $2 - AOM Options      #
+# $3 - FFMPEG Options   #
+# files - $file.out.ivf #
+#########################
 encode_aomenc_single_pass() {
     file="$1"
     aom_options="$2"
@@ -75,7 +77,7 @@ encode_aomenc_single_pass() {
     set +e
         eval 'ffmpeg -nostats -hide_banner -loglevel warning \
             -i '$file' $ffmpeg_options -f yuv4mpegpipe - | aomenc - '$aom_options' \
-            --ivf -o '$file'.out.ivf'
+            --passes=1 --ivf -o '$file'.out.ivf'
         retval=$?
         if [[ $retval -ne 0 ]]; then
             echo "Error running aomenc single pass encode" >&2
@@ -87,10 +89,11 @@ encode_aomenc_single_pass() {
 }
 
 
-##################
-# $1 - encode    #
-# $2 - reference #
-##################
+##########################
+# $1 - encode            #
+# $2 - reference         #
+# STDOUT - VMAF log JSON #
+##########################
 check_vmaf() {
     encode="$1"
     reference="$2"
@@ -114,6 +117,7 @@ check_vmaf() {
 # $2 - target vmaf #
 # $3 - minimum q   #
 # $4 - maximum q   #
+# STDOUT - Q value #
 ####################
 find_q() {
     echo "finding q" > &2
@@ -152,8 +156,7 @@ find_q() {
             max_q=`echo $q + 1 | bc`
         fi
     done
-    rm $input.out.ivf
-    rm $input.vmaf.json
+    rm "$input".out.ivf
 }
 
 find_q "$1" "94" "25" "40"
