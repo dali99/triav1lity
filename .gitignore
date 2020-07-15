@@ -1,2 +1,5 @@
 /target
 /result
+**/*.out.ivf
+**/*.vmaf.json
+**/*.fpf
