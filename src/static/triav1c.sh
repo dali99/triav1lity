@@ -49,7 +49,7 @@ encode_aomenc_two_pass() {
 
     set +e
         eval 'ffmpeg -nostats -hide_banner -loglevel warning \
-            -i '$file' $ffmpeg_options -f yuv4mpegpipe - | aomenc - '$aom_options' \
+            -i '$file' '$ffmpeg_options' -f yuv4mpegpipe - | aomenc - '$aom_options' \
             --pass=1 --passes=2 --fpf='$file'.fpf --ivf -o '$file'.out.ivf'
         retval=$?
         if [[ $retval -ne 0 ]]; then
@@ -59,7 +59,7 @@ encode_aomenc_two_pass() {
         fi
 
         eval 'ffmpeg -nostats -hide_banner -loglevel warning \
-            -i '$file' $ffmpeg_options -f yuv4mpegpipe - | aomenc - '$aom_options' \
+            -i '$file' '$ffmpeg_options' -f yuv4mpegpipe - | aomenc - '$aom_options' \
             --pass=2 --passes=2 --fpf='$file'.fpf --ivf -o '$file'.out.ivf'
         retval=$?
         if [ $retval -ne 0 ]; then
@@ -218,6 +218,7 @@ test() {
 av1master_job() {
     set +e
         job=`curl -s -L "$base_url"/request_job | jq`
+        retval=$?
     set -e
     if [[ $job = "null" ]] || [ $retval -ne 0 ]; then
         echo "No Jobs Available ¯\_(ツ)_/¯" >&2
@@ -246,7 +247,7 @@ av1master_job() {
     height=`echo $job | jq -r .description.resolution[0]`
     width=`echo $job | jq -r .description.resolution[1]`
 
-    options=`echo $job | jq .description.options`
+    options=`echo $job | jq .description.options.AOMENC`
     aomenco=`echo $options | jq -r .aomenc`
     ffmpego=`echo $options | jq -r .ffmpeg`
 
@@ -265,8 +266,18 @@ av1master_job() {
         aompix="--i444"
     fi
 
-    encode_aomenc_two_pass "$input" "$aomenco $aompix" "$ffmpego -vf scale=$width:$height $ffpix"
+    encode_aomenc_two_pass "$input" "$aomenco $aompix --width=$width --height=$height" "$ffmpego -vf scale=$width:$height -pix_fmt $ffpix"
 
+    rm "$input"
+
+    curl -s -L "$base_url"/edit_status/"$job_id"/completed
+    curl --data-binary @"$input".out.ivf "$base_url"/upload/"$job_id"
+    rm "$input".out.ivf
 }
 
-test
+#test
+
+while true; do
+    sleep 30
+    av1master_job
+done
