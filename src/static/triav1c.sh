@@ -5,6 +5,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+base_url="$1"
+version="0.13.0"
+
 #################
 # $1 - URL      #
 # $2 - output   #
@@ -13,6 +16,15 @@ IFS=$'\n\t'
 download() {
     curl -L "$1" -o "$2"
 }
+
+#duration=3
+#progressive_back_off() {
+#    if [[ duration -lt 300 ]]; then
+#        duration=$((duration * 2))
+#    else
+#        duration=300
+#    fi
+#}
 
 #########################
 # $1 - file             #
@@ -201,6 +213,60 @@ test() {
     vmaf=`check_vmaf "test-001.mkv.out.ivf" "test-001.mkv"`
     rm test-001.mkv
     echo $vmaf | graph_vmaf "test-001.graph.png"
+}
+
+av1master_job() {
+    set +e
+        job=`curl -s -L "$base_url"/request_job | jq`
+    set -e
+    if [[ $job = "null" ]] || [ $retval -ne 0 ]; then
+        echo "No Jobs Available ¯\_(ツ)_/¯" >&2
+        return 1
+    fi
+    job_id=`echo "$job" | jq -r .id`
+    set +e
+        curl -s "$base_url"/edit_status/"$job_id"/reserved
+    set -e
+
+    source=`echo $job | jq -r .description.file_url`
+    sourceext=${source##*.}
+    name=`echo $job | jq -r .description.file_name`
+    input="$name.$job_id.$sourceext"
+
+    set +e
+        download $source $input
+        retval=$?
+    set -e
+    if [ $retval -ne 0 ]; then
+        echo "Could not Download file!" >&2
+        curl -s -L "$base_url"/edit_status/"$job_id"/error || true
+        return 2
+    fi
+
+    height=`echo $job | jq -r .description.resolution[0]`
+    width=`echo $job | jq -r .description.resolution[1]`
+
+    options=`echo $job | jq .description.options`
+    aomenco=`echo $options | jq -r .aomenc`
+    ffmpego=`echo $options | jq -r .ffmpeg`
+
+    pix_fmt=`echo $options | jq -r .pix_fmt`
+    if [[ $pix_fmt = "YV12" ]]; then
+        ffpix="yuv12p"
+        aompix="--yv12"
+    elif [[ $pix_fmt = "I420" ]]; then
+        ffpix="yuv420p"
+        aompix="--i420"
+    elif [[ $pix_fmt = "I422" ]]; then
+        ffpix="yuv422p"
+        aompix="--i422"
+    elif [[ $pix_fmt = "I444" ]]; then
+        ffpix="yuv444p"
+        aompix="--i444"
+    fi
+
+    encode_aomenc_two_pass "$input" "$aomenco $aompix" "$ffmpego -vf scale=$width:$height $ffpix"
+
 }
 
 test
