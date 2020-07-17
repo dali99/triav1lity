@@ -143,7 +143,7 @@ percentille() {
 # file - $1         #
 #####################
 graph_vmaf() {
-    extract_vmaf | eplot -t VMAF -P -o "$1"
+    extract_vmaf | eplot -t VMAF -P -o "$1" 2>/dev/null
 }
 
 ####################
