@@ -16,7 +16,7 @@ stdenv.mkDerivation {
     chmod +x $out/bin/triav1c
 
     wrapProgram $out/bin/triav1c \
-      --prefix PATH : ${lib.makeBinPath [ ffmpeg-full libaom bc ]} \
+      --prefix PATH : ${lib.makeBinPath [ ffmpeg-full libaom bc curl datamash eplot ]} \
       --prefix MODEL_PATH : ${libvmaf}
   '';
 }

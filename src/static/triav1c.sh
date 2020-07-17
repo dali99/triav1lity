@@ -120,6 +120,32 @@ check_vmaf() {
     set -e
 }
 
+##################################
+# STDIN - vmaf json              #
+# STDOUT - per frame json column #
+##################################
+extract_vmaf() {
+    jq '.frames[].metrics.vmaf'
+}
+
+##################################################
+# stdin - vmaf json                              #
+# $1 - calculation -  one of mean,median,perc:XX #
+# stdout - result                                #
+##################################################
+percentille() {
+    extract_vmaf | datamash $1 1
+}
+
+#####################
+# STDIN - vmaf json #
+# $1 - output path  #
+# file - $1         #
+#####################
+graph_vmaf() {
+    extract_vmaf | eplot -t VMAF -P -o "$1"
+}
+
 ####################
 # $1 - input       #
 # $2 - target vmaf #
@@ -151,7 +177,7 @@ find_q() {
         echo "trying q: $q" >&2
 
         encode_aomenc_single_pass "$input" "-q --end-usage=q --cpu-used=6 --cq-level=$q" ""
-        vmaf=`check_vmaf "$input".out.ivf "$input" | jq -r '."VMAF score"'`
+        vmaf=`check_vmaf "$input".out.ivf "$input" | percentille "perc:25"`
         echo "vmaf: $vmaf" >&2
 
         result=`echo "$vmaf >= $target" | bc`
@@ -170,8 +196,11 @@ find_q() {
 test() {
     download "https://pomf.dodsorf.as/f/exfapb.mkv" "test-001.mkv"
     q=`find_q "test-001.mkv" "94" "25" "40"`
-    encode_aomenc_two_pass "test-001.mkv" "-q --end-usage=q --cpu-used=6 --cq-level=$q" ""
+    echo "$q"
+    encode_aomenc_two_pass "test-001.mkv" "-q --end-usage=q --cpu-used=4 --cq-level=$q" ""
+    vmaf=`check_vmaf "test-001.mkv.out.ivf" "test-001.mkv"`
     rm test-001.mkv
+    echo $vmaf | graph_vmaf "test-001.graph.png"
 }
 
 test
