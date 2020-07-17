@@ -5,6 +5,14 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+#################
+# $1 - URL      #
+# $2 - output   #
+# file - output #
+#################
+download() {
+    curl -L "$1" -o "$2"
+}
 
 #########################
 # $1 - file             #
@@ -100,7 +108,7 @@ check_vmaf() {
     set +e
         ffmpeg -nostats -hide_banner -loglevel warning \
             -r 24 -i "$encode" -r 24 -i "$reference" -filter_complex \
-            "[0:v][1:v]libvmaf=model_path=$MODEL_PATH/share/model/vmaf_v0.6.1.pkl:log_fmt=json:log_path=$encode.vmaf.json" -f null - >/dev/null
+            "[0:v][1:v]libvmaf=model_path=$MODEL_PATH/share/model/vmaf_v0.6.1.pkl:log_fmt=json:log_path=$encode.vmaf.json" -f null - 2>/dev/null >/dev/null
         retval=$?
         if [ $retval -ne 0 ]; then
             echo "Error running VMAF scan" >&2
@@ -120,7 +128,7 @@ check_vmaf() {
 # STDOUT - Q value #
 ####################
 find_q() {
-    echo "finding q" > &2
+    echo "finding q" >&2
     input="$1"
     target="$2"
     min_q="$3"
@@ -135,14 +143,14 @@ find_q() {
         echo "$min_q, $max_q" >&2
         q=`echo "($min_q + $max_q)/2" | bc`
         if [[ $q == $last_q ]]; then
-            echo "highest q over target is:" > &2
+            echo "highest q over target is:" >&2
             echo $best_q
             break
         fi;
         last_q=$q
-        echo "trying q: $q" > >&2
+        echo "trying q: $q" >&2
 
-        encode_aomenc_single_pass "$input" "-q --passes=1 --end-usage=q --cpu-used=6 --cq-level=$q" ""
+        encode_aomenc_single_pass "$input" "-q --end-usage=q --cpu-used=6 --cq-level=$q" ""
         vmaf=`check_vmaf "$input".out.ivf "$input" | jq -r '."VMAF score"'`
         echo "vmaf: $vmaf" >&2
 
@@ -159,4 +167,11 @@ find_q() {
     rm "$input".out.ivf
 }
 
-find_q "$1" "94" "25" "40"
+test() {
+    download "https://pomf.dodsorf.as/f/exfapb.mkv" "test-001.mkv"
+    q=`find_q "test-001.mkv" "94" "25" "40"`
+    encode_aomenc_two_pass "test-001.mkv" "-q --end-usage=q --cpu-used=6 --cq-level=$q" ""
+    rm test-001.mkv
+}
+
+test
